@@ -1,0 +1,52 @@
+# 一台机器一套服务。不要给任何服务设 TZ，容器保持 UTC。
+# 调度器自己用 CN_TZ。改容器时区会让代码里 utcnow() 的行为和 Zeabur 不一致。
+
+name: gojo
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # 不映射端口。外面只走 caddy 的 80/443。
+
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # Postgres 18 镜像的数据目录在 /var/lib/postgresql/18/docker。
+      # 卷必须挂在 /var/lib/postgresql，挂到 /var/lib/postgresql/data 不会落进这个目录。
+      - pg_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    # 不映射 5432。
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pg_data:
+  caddy_data:
+  caddy_config:
