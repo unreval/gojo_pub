@@ -1,0 +1,22 @@
+# 域名来自环境变量，不要在这个文件里写死。
+{$SITE_DOMAIN} {
+	encode gzip
+
+	# 请求体上限 32MB。依据：
+	# - 头像：backend/route_avatar.py 的 MAX_AVATAR_LEN = 2_000_000 字符（约 1.5MB 图片的 data URI）。
+	# - 图片聊天：backend/route_image.py 没有字节上限，但只取前 6 张。
+	#   前端单张 quality 0.7，视频抽 4 帧、quality 0.6。base64 比原图大约多三分之一。
+	#   按单张压缩后 3MB 估算，6 张大约 24MB。32MB 盖住头像上限，并给这 6 张留余量。
+	request_body {
+		max_size 32MB
+	}
+
+	# 非流式接口要等模型整段写完才返回。读写和响应头都放到 300 秒。
+	reverse_proxy app:8080 {
+		transport http {
+			response_header_timeout 300s
+			read_timeout 300s
+			write_timeout 300s
+		}
+	}
+}

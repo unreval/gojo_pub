@@ -1,0 +1,7 @@
+app/
+.expo/
+docs/
+tests/
+.git/
+.env
+**/__pycache__
